@@ -1,0 +1,1731 @@
+<!-- Dashboard.html -->
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Controle de Saldo do Centro de Distribuição - Ata x Estoque</title>
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+  <style>
+    :root{
+      --ink:#0f172a; --muted:#64748b; --bg:#f3f6fb; --card:#fff;
+      --brand:#1E40AF; --shadow:0 2px 10px rgba(15,23,42,.08); --radius:14px;
+      --ok:#16a34a; --warn:#f59e0b; --crit:#ef4444; --info:#2563eb; --soft:#e2e8f0;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);font:14px/1.35 system-ui,Segoe UI,Arial;color:var(--ink)}
+    .header{
+      background:var(--brand); color:#fff; padding:12px 16px; margin:12px; border-radius:12px;
+      display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow); gap:12px;
+    }
+    .header h1{margin:0; font-size:18px; font-weight:800}
+    .header-left{font-size:12px; opacity:.95; white-space:nowrap; min-width:140px}
+    .header-right{display:flex; gap:8px; align-items:center; min-width:140px; justify-content:flex-end}
+    .header-right button{background:#fff;color:var(--brand);border:0;border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer}
+
+    .layout{display:grid;grid-template-columns:300px 1fr;gap:12px;margin:0 12px 12px}
+    .side{
+      background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+      padding:12px; height:calc(100vh - 120px); position:sticky; top:12px; overflow:auto;
+    }
+    .main{min-width:0}
+
+    .panel{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 14px}
+    .filters{display:flex;flex-direction:column;gap:10px}
+    label{font-size:12px;color:#475569;display:block;margin-bottom:4px}
+    select, input[type="text"]{width:100%;padding:8px 10px;border:1px solid #CBD5E1;border-radius:10px;background:#fff}
+    .btn{padding:8px 12px;border:none;border-radius:10px;cursor:pointer;font-weight:800}
+    .btn-secondary{background:#E2E8F0;color:#111827}
+    .ghost{background:#fff;border:1px solid #cbd5e1;color:#0f172a}
+    .mini{font-size:12px;color:var(--muted)}
+    hr.sep{border:0;border-top:1px solid #e5e7eb;margin:12px 0}
+
+    /* KPIs gerais */
+    .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:0 0 12px}
+    .kpi{
+      background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px 12px;
+      cursor:pointer; user-select:none;
+      outline:2px solid transparent; outline-offset:2px;
+    }
+    .kpi:hover{box-shadow:0 8px 22px rgba(15,23,42,.10)}
+    .kpi.active{outline-color:#93c5fd}
+    .kpi h4{margin:0 0 6px;font-size:12px;color:var(--muted);font-weight:800}
+    .kpi .val{font-weight:900;font-size:18px}
+    .kpi .sub{font-size:12px;color:var(--muted);margin-top:4px}
+
+    .grid2{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px}
+    .chart-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:8px;height:360px}
+    #chartGeneral{width:100%;height:100%}
+
+    .risk-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px}
+    .risk-card h3{margin:0 0 10px;font-size:14px}
+    .risk-item{
+      background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:10px;margin-bottom:8px;
+      display:flex;justify-content:space-between;align-items:center;gap:10px;
+      cursor:pointer; user-select:none;
+      outline:2px solid transparent; outline-offset:2px;
+    }
+    .risk-item:hover{background:#f8fafc}
+    .risk-item.active{outline-color:#93c5fd}
+    .risk-item small{color:var(--muted)}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-weight:900;font-size:12px}
+    .p-ok{background:#e8f7ee;color:#14532d;border:1px solid #bbf7d0}
+    .p-crit{background:#fff1f2;color:#7f1d1d;border:1px solid #fecdd3}
+    .p-warn{background:#fff7ed;color:#7c2d12;border:1px solid #fed7aa}
+    .p-info{background:#eff6ff;color:#1e3a8a;border:1px solid #bfdbfe}
+
+    /* tabela geral */
+    .table-top-scroll{
+      background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);
+      overflow-x:auto;overflow-y:hidden;height:16px;margin-bottom:6px;
+    }
+    .table-top-scroll > div{ height:1px; }
+    .table-wrap{
+      overflow:auto;border-radius:var(--radius);box-shadow:var(--shadow);background:#fff;max-height:60vh;
+    }
+    table{width:100%;border-collapse:collapse}
+    th, td{border:1px solid #E5E7EB;padding:8px 10px;font-size:13px;white-space:nowrap}
+    th{background:#F1F5F9;position:sticky;top:0;z-index:5}
+    tbody td{cursor:pointer}
+    tbody tr:hover td{background:#f8fafc}
+
+    #tblInfo{font-size:12px;color:#64748b;margin:6px 0}
+    #tblPager{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px}
+    #tblPager button{padding:4px 8px;border-radius:999px;border:1px solid #CBD5E1;background:#fff;cursor:pointer}
+    #tblPager button.active{background:#111827;color:#fff;border-color:#111827}
+
+    #loader{position:fixed;inset:0;background:rgba(247,249,252,.92);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:10px}
+    .spin{width:44px;height:44px;border-radius:50%;border:4px solid #cbd5e1;border-top-color:var(--brand);animation:sp .9s linear infinite}
+    @keyframes sp{to{transform:rotate(360deg)}}
+    #errorBox{display:none;background:#fff1f2;color:#7f1d1d;border:1px solid #fecdd3;padding:10px 12px;border-radius:10px;margin:12px}
+
+    /* ==========================================
+       CONTROLE DE ESTOQUE
+       ========================================== */
+    .est-chart-card{
+      background:#fff;
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:10px;
+      height:360px;
+      margin-bottom:12px;
+    }
+    #chartEstCatalogo{ width:100%; height:100%; }
+
+    .est-table-title{
+      color:var(--ink);
+      font-weight:900;
+      font-size:14px;
+      margin:6px 0 8px;
+    }
+    .est-sub{
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:8px;
+    }
+
+    .est-table-top{
+      background:#fff;
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow-x:auto;
+      overflow-y:hidden;
+      height:16px;
+      margin-bottom:6px;
+    }
+    .est-table-top > div{ height:1px; }
+
+    .est-table-wrap{
+      background:#fff;
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:auto;
+      max-height:50vh;
+    }
+    #estInfo{ color:var(--muted); font-size:12px; margin:0 0 8px; }
+
+    .est-table-wrap table th{
+      background:#F1F5F9;
+      color:var(--ink);
+      position:sticky;
+      top:0;
+      z-index:5;
+    }
+    .est-table-wrap table td{ cursor:pointer; }
+
+    .est-pager{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .est-pager button{
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid #CBD5E1;
+      background:#fff;
+      color:#0f172a;
+      cursor:pointer;
+    }
+    .est-pager button.active{
+      background:#111827;
+      color:#fff;
+      border-color:#111827;
+      font-weight:900;
+    }
+
+    /* ==========================================
+       FILTRO REGIONAL — CHECKBOXES
+       ========================================== */
+    .regional-filter-wrap{
+      border:1px solid #CBD5E1;
+      border-radius:10px;
+      background:#fff;
+      padding:6px 8px;
+      max-height:160px;
+      overflow-y:auto;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .regional-filter-wrap label{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:12px;
+      color:#0f172a;
+      cursor:pointer;
+      margin:0;
+      padding:2px 4px;
+      border-radius:6px;
+    }
+    .regional-filter-wrap label:hover{ background:#f1f5f9; }
+    .regional-filter-wrap input[type="checkbox"]{
+      width:14px; height:14px; flex-shrink:0; cursor:pointer; accent-color:var(--brand);
+    }
+    .regional-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:4px;
+    }
+    .regional-header a{
+      font-size:11px;
+      color:var(--brand);
+      cursor:pointer;
+      text-decoration:underline;
+    }
+    #estRegionalCount{
+      font-size:11px;
+      color:var(--muted);
+      margin-top:3px;
+    }
+
+    @media (max-width: 1100px){
+      .layout{grid-template-columns:1fr}
+      .side{position:relative;height:auto}
+      .kpis{grid-template-columns:repeat(2,1fr)}
+      .grid2{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div id="loader"><div class="spin"></div><div style="font-weight:800;color:#334155">Carregando dados…</div></div>
+
+  <!-- HEADER PRINCIPAL -->
+  <div class="header">
+    <div class="header-left" id="updated">Atualizado em —</div>
+    <h1>Controle de Saldo do Centro de Distribuição</h1>
+    <div class="header-right">
+      <button id="btnExport">Exportar CSV</button>
+    </div>
+  </div>
+
+  <!-- DASH 1 -->
+  <div class="layout">
+    <aside class="side">
+      <div class="panel">
+        <div class="filters">
+          <div style="font-weight:900">FILTROS</div>
+          <hr class="sep"/>
+
+          <div><label>Entidade</label><select id="selEnt"><option value="">Todas</option></select></div>
+          <div><label>Origem</label>
+            <select id="selOrigem">
+              <option value="">Todas</option>
+              <option value="CONTRATO">Contrato</option>
+              <option value="COMPRA">Compra certa</option>
+            </select>
+          </div>
+          <div><label>Contrato</label><select id="selContrato"><option value="">Todos</option></select></div>
+          <div><label>Posição</label><select id="selPosicao"><option value="">Todas</option></select></div>
+          <div><label>Vigência</label>
+            <select id="selVig">
+              <option value="">Todas</option>
+              <option value="VIGENTE">VIGENTE</option>
+              <option value="VENCE30">VENCE EM ≤ 30 DIAS</option>
+              <option value="VENCIDO">VENCIDO</option>
+            </select>
+          </div>
+          <div><label>Status de estoque</label>
+            <select id="selStock">
+              <option value="">Todos</option>
+              <option value="COM">Com estoque</option>
+              <option value="SEM">Sem estoque</option>
+            </select>
+          </div>
+          <div><label>Buscar (produto / variação / cod)</label><input type="text" id="search" placeholder="digite para filtrar…" /></div>
+
+          <div class="actions">
+            <button class="btn btn-secondary" id="btnClear">Limpar filtros</button>
+          </div>
+
+          <div style="margin-top:10px;color:var(--muted);font-size:12px">
+            Observação: SESI e SENAI sempre são tratados separadamente (não somam entre si).
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div id="errorBox"></div>
+
+      <section id="viewGeneral">
+        <div class="kpis" id="kpisGeneral"></div>
+
+        <div class="grid2">
+          <div class="chart-card"><div id="chartGeneral"></div></div>
+
+          <div class="risk-card">
+            <h3>Resumo de risco</h3>
+
+            <div class="risk-item" id="riskCrit" data-risk="CRIT">
+              <div>
+                <div style="font-weight:900">Críticos Q1</div>
+                <small>estoque &lt; previsão Q1</small>
+              </div>
+              <span class="pill p-crit" id="rCrit">—</span>
+            </div>
+
+            <div class="risk-item" id="riskRen" data-risk="REN">
+              <div>
+                <div style="font-weight:900">Renovação urgente</div>
+                <small>vence30/vencido + demanda</small>
+              </div>
+              <span class="pill p-warn" id="rRen">—</span>
+            </div>
+
+            <div class="risk-item" id="riskExc" data-risk="EXC">
+              <div>
+                <div style="font-weight:900">Excesso vs consumo 2025</div>
+                <small>cobertura histórica alta</small>
+              </div>
+              <span class="pill p-info" id="rExc">—</span>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="panel">
+          <div style="font-weight:900;margin-bottom:8px">Tabela detalhada (linhas de contrato + compra certa)</div>
+          <div id="tblInfo"></div>
+          <div id="topScroll" class="table-top-scroll"><div id="topScrollInner"></div></div>
+          <div id="tableWrap" class="table-wrap"><table id="tbl"></table></div>
+          <div id="tblPager"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- HEADER BLOCO 2 -->
+  <div class="header" id="estHeader">
+    <div class="header-left"></div>
+    <h1>Controle de Estoque</h1>
+    <div class="header-right">
+      <button id="btnExportEst">Exportar CSV</button>
+    </div>
+  </div>
+
+  <!-- DASH 2 -->
+  <div class="layout">
+    <aside class="side">
+      <div class="panel">
+        <div class="filters">
+          <div style="font-weight:900">FILTROS — Controle de estoque</div>
+          <div class="mini">Filtros deste bloco não afetam os demais.</div>
+          <hr class="sep"/>
+
+          <div><label>Filial</label><select id="estFilial"><option value="">Todas</option></select></div>
+          <div><label>Grupo de compras</label><select id="estGrupo"><option value="">Todos</option></select></div>
+          <div><label>Catálogo</label><select id="estCatalogo"><option value="">Todos</option></select></div>
+
+          <!-- Filtro Regional com múltipla seleção por checkboxes -->
+          <div>
+            <div class="regional-header">
+              <label style="margin:0;font-weight:700">Regional</label>
+              <span>
+                <a id="estRegionalAll" title="Selecionar todas">Todas</a>
+                &nbsp;/&nbsp;
+                <a id="estRegionalNone" title="Limpar seleção">Nenhuma</a>
+              </span>
+            </div>
+            <div class="mini" style="margin-bottom:4px">
+              Baseado no Consumo 2025 + 2026 — um item aparece se qualquer regional selecionada o consumiu.
+            </div>
+            <div class="regional-filter-wrap" id="estRegionalList">
+              <div style="color:#9ca3af;font-size:12px;padding:4px">Carregando regionais…</div>
+            </div>
+            <div id="estRegionalCount" class="mini"></div>
+          </div>
+
+          <div><label>Saldo de estoque</label>
+            <select id="estSaldo">
+              <option value="">Todos</option>
+              <option value="COM">Com estoque</option>
+              <option value="SEM">Sem estoque</option>
+            </select>
+          </div>
+          <div><label>Última mov.</label>
+            <select id="estUlt">
+              <option value="">Todos</option>
+              <option value="COM">Itens com movimentação</option>
+              <option value="SEM">Itens sem movimentação</option>
+            </select>
+          </div>
+          <div><label>Buscar (produto/variação)</label>
+            <input type="text" id="estSearch" placeholder="digite para filtrar…" />
+          </div>
+          <div class="actions">
+            <button class="btn btn-secondary" id="estClear" type="button">Limpar filtros (Controle de estoque)</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section id="estSection">
+        <div class="panel">
+          <div class="est-chart-card">
+            <div id="chartEstCatalogo"></div>
+          </div>
+
+          <div class="est-table-title">Tabela - Controle de estoque</div>
+          <div class="est-sub">Visão detalhada do estoque usando a aba Estoque_semov</div>
+          <div id="estInfo"></div>
+          <div id="estTopScroll" class="est-table-top"><div id="estTopScrollInner"></div></div>
+          <div class="est-table-wrap"><table id="estTbl"></table></div>
+          <div class="est-pager" id="estPager"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    google.charts.load('current', {'packages':['corechart']});
+
+    // ===============================
+    // STATE (principal)
+    // ===============================
+    let RAW_ROWS = [];
+    let ITEMS = [];
+    const PAGE_SIZE = 100;
+    let currentPage = 1;
+    let SEARCH = '';
+    let searchTimeout = null;
+
+    // Cross-filters do bloco principal (isolado)
+    const MAIN_XF = {
+      kpi: '',
+      risk: '',
+      variacao: ''
+    };
+
+    // ===============================
+    // STATE (controle de estoque - isolado)
+    // ===============================
+    let EST_ROWS = [];
+    let estPage = 1;
+    let EST_SEARCH = '';
+    let estSearchTimeout = null;
+
+    // mapa variacao → array de regionais (vindo do JSON, combinado 2025+2026)
+    let VARIACAO_REGIOES = {};
+    let TODAS_REGIOES    = [];
+
+    let EST_FILT = {
+      filial: '',
+      grupo: '',
+      catalogo: '',
+      saldo: '',
+      ultima: '',
+      catClick: '',
+      regioes: new Set(),   // Set vazio = "todas"
+      regioesNenhuma: false
+    };
+
+    const norm = s => (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+
+    const QTY_VIEW = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+    const QTY = v => QTY_VIEW.format(Number(v)||0);
+    const INT0 = v => (Number(v)||0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+
+    const BRL_VIEW = v => (Number(v)||0).toLocaleString('pt-BR',{style:'currency', currency:'BRL'});
+    const BRL_EXPORT = new Intl.NumberFormat('pt-BR', { useGrouping:false, minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    const BRLX = v => BRL_EXPORT.format(Number(v)||0);
+
+    const QTY_EXPORT = new Intl.NumberFormat('pt-BR', { useGrouping:false, minimumFractionDigits: 0, maximumFractionDigits: 4 });
+    const QTYX = v => QTY_EXPORT.format(Number(v)||0);
+
+    function toggleLoader(on){ document.getElementById('loader').style.display = on ? 'flex' : 'none'; }
+    function esc(s){ return (s||'').toString().replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+    function escAttr(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function showError(err){
+      const box = document.getElementById('errorBox');
+      if (box){
+        box.style.display='block';
+        box.innerHTML = `<strong>Erro:</strong><br>${esc((err && err.message) ? err.message : String(err))}`;
+      } else {
+        alert((err && err.message) ? err.message : String(err));
+      }
+      toggleLoader(false);
+    }
+    window.addEventListener('error', (e)=> showError(e.error || e.message));
+    window.addEventListener('unhandledrejection', (e)=> showError(e.reason || e));
+
+    function formatISOToBR(iso){
+      if (!iso) return '';
+      const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return String(iso);
+      return `${m[3]}/${m[2]}/${m[1]}`;
+    }
+
+    function formatAnyDateToBR(v){
+      if (v == null || v === '') return '';
+      const s = String(v).trim();
+      if (!s) return '';
+
+      const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (br) return s;
+
+      const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+
+      const dt = new Date(s);
+      if (!isNaN(dt.getTime())){
+        const dd = String(dt.getDate()).padStart(2,'0');
+        const mm = String(dt.getMonth()+1).padStart(2,'0');
+        const yyyy = dt.getFullYear();
+        return `${dd}/${mm}/${yyyy}`;
+      }
+
+      return s;
+    }
+
+    // ===============================
+    // FILTERS (principal)
+    // ===============================
+    function params(){
+      return {
+        ent: document.getElementById('selEnt').value,
+        origem: document.getElementById('selOrigem').value,
+        contrato: document.getElementById('selContrato').value,
+        posicao: document.getElementById('selPosicao').value,
+        stock: document.getElementById('selStock').value,
+        vig: document.getElementById('selVig').value
+      };
+    }
+
+    function calcCobHistMeses(estoque, cons2025){
+      if (!cons2025 || cons2025 <= 0) return null;
+      const mensal = cons2025 / 12;
+      if (mensal <= 0) return null;
+      return estoque / mensal;
+    }
+
+    function calcNecQ1(estoque, prevQ1){
+      const n = (Number(prevQ1)||0) - (Number(estoque)||0);
+      return n > 0 ? n : 0;
+    }
+
+    function rowPassMainXF(d){
+      if (MAIN_XF.kpi === 'ESTOQUE'){ if (!(Number(d.QTDEDISP||0) > 0)) return false; }
+      if (MAIN_XF.kpi === 'ATA'){ if (!(Number(d.QTDEDISPONIVEL||0) > 0)) return false; }
+      if (MAIN_XF.kpi === 'PREV'){ if (!(Number(d.PREV_Q1||0) > 0)) return false; }
+      if (MAIN_XF.kpi === 'CONS'){ if (!(Number(d.CONS_2025_QTD||0) > 0)) return false; }
+
+      if (MAIN_XF.risk === 'CRIT'){
+        const estoque = Number(d.QTDEDISP||0);
+        const prevQ1  = Number(d.PREV_Q1||0);
+        if (!(prevQ1 > 0 && estoque < prevQ1)) return false;
+      }
+      if (MAIN_XF.risk === 'REN'){
+        const prevQ1 = Number(d.PREV_Q1||0);
+        const cons  = Number(d.CONS_2025_QTD||0);
+        const dem = (prevQ1>0 || cons>0);
+        const urg = (d.VIG_STATUS === 'VENCE30' || d.VIG_STATUS === 'VENCIDO');
+        if (!(dem && urg)) return false;
+      }
+      if (MAIN_XF.risk === 'EXC'){
+        const cob = calcCobHistMeses(Number(d.QTDEDISP||0), Number(d.CONS_2025_QTD||0));
+        if (!(cob != null && cob > 12)) return false;
+      }
+
+      if (MAIN_XF.variacao){
+        if ((d.VARIACAO||'').toString().trim() !== MAIN_XF.variacao) return false;
+      }
+
+      return true;
+    }
+
+    function filterRowsByUI(){
+      const p = params();
+      let rows = RAW_ROWS.filter(d=>{
+        if (p.ent && d.ENTIDADE !== p.ent) return false;
+
+        const isCompra = (d.ORIGEM === 'COMPRA');
+        if (p.origem === 'CONTRATO' && isCompra) return false;
+        if (p.origem === 'COMPRA' && !isCompra) return false;
+
+        if (p.contrato && d.CONTRATO !== p.contrato) return false;
+        if (p.posicao && d.POSICAO !== p.posicao) return false;
+        if (p.vig && d.VIG_STATUS !== p.vig) return false;
+
+        if (p.stock === 'COM' && !(Number(d.QTDEDISP||0) > 0)) return false;
+        if (p.stock === 'SEM' && !(Number(d.QTDEDISP||0) === 0)) return false;
+
+        if (!rowPassMainXF(d)) return false;
+        return true;
+      });
+
+      if (SEARCH){
+        const q = SEARCH;
+        rows = rows.filter(d =>
+          (d.PRODUTO_N||'').includes(q) ||
+          (d.VARIACAO_N||'').includes(q) ||
+          (d.COD_N||'').includes(q)
+        );
+      }
+
+      if (MAIN_XF.kpi === 'ITENS'){
+        const seen = new Set();
+        const out = [];
+        for (const d of rows){
+          const key = String(d.ENTIDADE||'') + '|' + String(d.VARIACAO||'').trim();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push(d);
+        }
+        rows = out;
+      }
+
+      return rows;
+    }
+
+    function itemPassMainXF(it){
+      if (MAIN_XF.kpi === 'ESTOQUE'){ if (!(Number(it.ESTOQUE||0) > 0)) return false; }
+      if (MAIN_XF.kpi === 'ATA'){ if (!(Number(it.ATA_DISP||0) > 0)) return false; }
+      if (MAIN_XF.kpi === 'PREV'){ if (!(Number(it.PREV_Q1||0) > 0)) return false; }
+      if (MAIN_XF.kpi === 'CONS'){ if (!(Number(it.CONS_2025_QTD||0) > 0)) return false; }
+
+      if (MAIN_XF.risk === 'CRIT'){
+        const estoque = Number(it.ESTOQUE||0);
+        const prevQ1  = Number(it.PREV_Q1||0);
+        if (!(prevQ1 > 0 && estoque < prevQ1)) return false;
+      }
+      if (MAIN_XF.risk === 'REN'){
+        const prevQ1 = Number(it.PREV_Q1||0);
+        const cons  = Number(it.CONS_2025_QTD||0);
+        const dem = (prevQ1>0 || cons>0);
+        const urg = (it.VIG_STATUS === 'VENCE30' || it.VIG_STATUS === 'VENCIDO');
+        if (!(dem && urg)) return false;
+      }
+      if (MAIN_XF.risk === 'EXC'){
+        const cob = calcCobHistMeses(Number(it.ESTOQUE||0), Number(it.CONS_2025_QTD||0));
+        if (!(cob != null && cob > 12)) return false;
+      }
+
+      if (MAIN_XF.variacao){
+        if ((it.VARIACAO||'').toString().trim() !== MAIN_XF.variacao) return false;
+      }
+
+      return true;
+    }
+
+    function filterItemsByUI(){
+      const p = params();
+      let items = ITEMS.filter(it=>{
+        if (p.ent && it.ENTIDADE !== p.ent) return false;
+        if (!itemPassMainXF(it)) return false;
+        return true;
+      });
+
+      if (SEARCH){
+        const q = SEARCH;
+        items = items.filter(it =>
+          norm(it.PRODUTO||'').includes(q) ||
+          norm(it.VARIACAO||'').includes(q) ||
+          norm(it.CODPRODUTO||'').includes(q)
+        );
+      }
+
+      return items;
+    }
+
+    // ===============================
+    // KPIs + chart + table (principal)
+    // ===============================
+    function renderKpisGeneral(rows, items){
+      const linhas = rows.length;
+      const itensUnicos = items.length;
+
+      const estoqueTotal = items.reduce((s,x)=>s+(Number(x.ESTOQUE)||0),0);
+      const ataDispTotal = items.reduce((s,x)=>s+(Number(x.ATA_DISP)||0),0);
+      const prevQ1Total  = items.reduce((s,x)=>s+(Number(x.PREV_Q1||0)),0);
+      const cons25Total  = items.reduce((s,x)=>s+(Number(x.CONS_2025_QTD||0)),0);
+
+      const kpiActive = (k)=> (k && MAIN_XF.kpi === k ? ' active' : '');
+
+      const html = `
+        <div class="kpi" data-kpi=""><h4>Linhas (tabela)</h4><div class="val">${INT0(linhas)}</div><div class="sub">filtro atual</div></div>
+        <div class="kpi${kpiActive('ITENS')}" data-kpi="ITENS"><h4>Itens únicos</h4><div class="val">${INT0(itensUnicos)}</div><div class="sub">ENTIDADE + VARIAÇÃO</div></div>
+
+        <div class="kpi${kpiActive('ESTOQUE')}" data-kpi="ESTOQUE"><h4>Estoque total</h4><div class="val">${QTY(estoqueTotal)}</div><div class="sub">somando itens únicos</div></div>
+        <div class="kpi${kpiActive('ATA')}" data-kpi="ATA"><h4>Ata disponível</h4><div class="val">${QTY(ataDispTotal)}</div><div class="sub">somando posições</div></div>
+        <div class="kpi${kpiActive('PREV')}" data-kpi="PREV"><h4>Previsão Q1</h4><div class="val">${INT0(prevQ1Total)}</div><div class="sub">somando itens únicos</div></div>
+        <div class="kpi${kpiActive('CONS')}" data-kpi="CONS"><h4>Consumo 2025</h4><div class="val">${INT0(cons25Total)}</div><div class="sub">histórico (referência)</div></div>
+      `;
+      const kpiWrap = document.getElementById('kpisGeneral');
+      kpiWrap.innerHTML = html;
+
+      const crit = items.filter(it => {
+        const estoque = Number(it.ESTOQUE||0);
+        const prevQ1  = Number(it.PREV_Q1||0);
+        return prevQ1 > 0 && estoque < prevQ1;
+      }).length;
+
+      const ren = items.filter(it => {
+        const prevQ1 = Number(it.PREV_Q1||0);
+        const cons  = Number(it.CONS_2025_QTD||0);
+        const dem = (prevQ1>0 || cons>0);
+        const urg = (it.VIG_STATUS === 'VENCE30' || it.VIG_STATUS === 'VENCIDO');
+        return dem && urg;
+      }).length;
+
+      const exc = items.filter(it => {
+        const cob = calcCobHistMeses(Number(it.ESTOQUE||0), Number(it.CONS_2025_QTD||0));
+        return cob != null && cob > 12;
+      }).length;
+
+      document.getElementById('rCrit').textContent = INT0(crit);
+      document.getElementById('rRen').textContent  = INT0(ren);
+      document.getElementById('rExc').textContent  = INT0(exc);
+
+      document.querySelectorAll('.risk-item').forEach(el=>{
+        const k = el.dataset.risk || '';
+        el.classList.toggle('active', MAIN_XF.risk === k);
+      });
+
+      kpiWrap.querySelectorAll('.kpi').forEach(card=>{
+        card.addEventListener('click', ()=>{
+          const k = card.dataset.kpi || '';
+          if (!k) return;
+
+          MAIN_XF.kpi = (MAIN_XF.kpi === k) ? '' : k;
+          currentPage = 1;
+          renderGeneral();
+        });
+      });
+    }
+
+    function drawChartGeneral(items){
+      const top = items
+        .map(it=>{
+          const estoque = Number(it.ESTOQUE||0);
+          const ataDisp = Number(it.ATA_DISP||0);
+          const prevQ1  = Number(it.PREV_Q1||0);
+          const cons25  = Number(it.CONS_2025_QTD||0);
+          const nec = calcNecQ1(estoque, prevQ1);
+          return [it.VARIACAO || '(Sem variação)', estoque, ataDisp, prevQ1, cons25, nec];
+        })
+        .sort((a,b)=> b[5]-a[5])
+        .slice(0,10);
+
+      const dt = new google.visualization.DataTable();
+      dt.addColumn('string','Variação');
+      dt.addColumn('number','Estoque');
+      dt.addColumn('number','Ata disp.');
+      dt.addColumn('number','Previsão Q1');
+      dt.addColumn('number','Consumo 2025');
+      dt.addColumn('number','Necessidade Q1');
+      top.forEach(r=>dt.addRow(r));
+
+      const chart = new google.visualization.ColumnChart(document.getElementById('chartGeneral'));
+      chart.draw(dt, {
+        title: 'Top 10 — Necessidade Q1',
+        height: 340,
+        legend: { position:'top' },
+        hAxis: { slantedText:true, slantedTextAngle:45, textStyle:{fontSize:10} }
+      });
+
+      google.visualization.events.removeAllListeners(chart);
+      google.visualization.events.addListener(chart, 'select', ()=>{
+        const sel = chart.getSelection();
+        if (!sel || !sel.length) return;
+        const row = sel[0].row;
+        if (row == null) return;
+
+        const variacao = top[row] ? top[row][0] : '';
+        if (!variacao) return;
+
+        MAIN_XF.variacao = (MAIN_XF.variacao === variacao) ? '' : variacao;
+        currentPage = 1;
+        renderGeneral();
+      });
+    }
+
+    function sortGeneralRows(rows){
+      const r = rows.slice();
+      r.sort((a,b)=>{
+        const ae = String(a.ENTIDADE||'').localeCompare(String(b.ENTIDADE||''), 'pt-BR', {sensitivity:'base'});
+        if (ae !== 0) return ae;
+        const ac = String(a.CONTRATO||'').localeCompare(String(b.CONTRATO||''), 'pt-BR', {sensitivity:'base'});
+        if (ac !== 0) return ac;
+        const ap = String(a.POSICAO||'').localeCompare(String(b.POSICAO||''), 'pt-BR', {sensitivity:'base'});
+        if (ap !== 0) return ap;
+        return String(a.PRODUTO||'').localeCompare(String(b.PRODUTO||''), 'pt-BR', {sensitivity:'base'});
+      });
+      return r;
+    }
+
+    function drawTableGeneral(rows){
+      const allRows = sortGeneralRows(rows);
+      const total = allRows.length;
+
+      const tbl = document.getElementById('tbl');
+      const info = document.getElementById('tblInfo');
+
+      const headHtml = `<thead><tr>
+        <th>ENTIDADE</th><th>ORIGEM</th><th>CONTRATO</th><th>POSIÇÃO</th><th>VIGÊNCIA</th>
+        <th>COD</th><th>PRODUTO</th><th>VARIAÇÃO</th>
+        <th>CUSTO MÉDIO</th>
+        <th>ESTOQUE</th><th>EST.MIN</th><th>PTO.REP</th><th>EST.MAX</th><th>ATA DISP.</th><th>PREV Q1</th><th>CONS 2026</th><th>CONS 2025</th><th>COB (MESES)</th><th>NEC Q1</th>
+      </tr></thead>`;
+
+      if (total === 0){
+        tbl.innerHTML = headHtml + `<tbody><tr><td colspan="19" style="text-align:center;color:#9ca3af;">Nenhum registro encontrado.</td></tr></tbody>`;
+        info.textContent = 'Mostrando 0 de 0 linhas.';
+        document.getElementById('tblPager').innerHTML = '';
+        setTimeout(()=>syncTopScrollbar('topScroll','tableWrap','topScrollInner'),0);
+        return;
+      }
+
+      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      if (currentPage > totalPages) currentPage = totalPages;
+      const startIndex = (currentPage - 1) * PAGE_SIZE;
+      const endIndex = Math.min(startIndex + PAGE_SIZE, total);
+      const pageRows = allRows.slice(startIndex, endIndex);
+
+      info.textContent = `Mostrando ${(startIndex+1).toLocaleString('pt-BR')}–${endIndex.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')} linhas`;
+
+      let body = '<tbody>';
+      pageRows.forEach(d=>{
+        const estoque = Number(d.QTDEDISP||0);
+        const cons26  = Number(d.CONS_2026_QTD||0);
+        const cons25  = Number(d.CONS_2025_QTD||0);
+        const prevQ1  = Number(d.PREV_Q1||0);
+        const cob = calcCobHistMeses(estoque, cons25);
+        const nec = calcNecQ1(estoque, prevQ1);
+
+        body += `<tr>
+          <td data-field="ENTIDADE" data-value="${escAttr(d.ENTIDADE||'')}">${esc(d.ENTIDADE||'')}</td>
+          <td data-field="ORIGEM" data-value="${escAttr(d.ORIGEM||'')}">${esc(d.ORIGEM||'')}</td>
+          <td data-field="CONTRATO" data-value="${escAttr(d.CONTRATO||'')}">${esc(d.CONTRATO||'')}</td>
+          <td data-field="POSICAO" data-value="${escAttr(d.POSICAO||'')}">${esc(d.POSICAO||'')}</td>
+          <td data-field="VIG_STATUS" data-value="${escAttr(d.VIG_STATUS||'')}">${esc(formatISOToBR(d.DATAFIM_ISO))}</td>
+
+          <td data-field="CODPRODUTO" data-value="${escAttr(d.CODPRODUTO||'')}">${esc(d.CODPRODUTO||'')}</td>
+          <td data-field="PRODUTO" data-value="${escAttr(d.PRODUTO||'')}">${esc(d.PRODUTO||'')}</td>
+          <td data-field="VARIACAO" data-value="${escAttr(d.VARIACAO||'')}">${esc(d.VARIACAO||'')}</td>
+
+          <td>${BRL_VIEW(d.CUSTO_MEDIO||0)}</td>
+          <td>${QTY(d.QTDEDISP||0)}</td>
+          <td>${QTY(d.EST_MIN||0)}</td>
+          <td>${QTY(d.PTO_REP||0)}</td>
+          <td>${QTY(d.EST_MAX||0)}</td>
+          <td>${QTY(d.QTDEDISPONIVEL||0)}</td>
+          <td>${QTY(d.PREV_Q1||0)}</td>
+          <td>${QTY(d.CONS_2026_QTD||0)}</td>
+          <td>${QTY(d.CONS_2025_QTD||0)}</td>
+          <td>${cob==null ? '—' : (Math.round(cob*10)/10).toLocaleString('pt-BR',{maximumFractionDigits:1})}</td>
+          <td>${QTY(nec)}</td>
+        </tr>`;
+      });
+      body += '</tbody>';
+
+      tbl.innerHTML = headHtml + body;
+      renderPager('tblPager', totalPages, currentPage, (p)=>{ currentPage=p; drawTableGeneral(filterRowsByUI()); });
+      setTimeout(()=>syncTopScrollbar('topScroll','tableWrap','topScrollInner'),0);
+
+      bindMainTableClick();
+    }
+
+    function bindMainTableClick(){
+      const tbl = document.getElementById('tbl');
+      tbl.onclick = null;
+
+      tbl.onclick = (e)=>{
+        const td = e.target.closest('td');
+        if (!td) return;
+
+        const field = td.dataset.field;
+        const value = td.dataset.value || '';
+        if (!field) return;
+
+        if (field === 'ENTIDADE'){
+          const sel = document.getElementById('selEnt');
+          sel.value = (sel.value === value) ? '' : value;
+        }
+        else if (field === 'ORIGEM'){
+          const sel = document.getElementById('selOrigem');
+          sel.value = (sel.value === value) ? '' : value;
+        }
+        else if (field === 'CONTRATO'){
+          const sel = document.getElementById('selContrato');
+          sel.value = (sel.value === value) ? '' : value;
+        }
+        else if (field === 'POSICAO'){
+          const sel = document.getElementById('selPosicao');
+          sel.value = (sel.value === value) ? '' : value;
+        }
+        else if (field === 'VIG_STATUS'){
+          const sel = document.getElementById('selVig');
+          sel.value = (sel.value === value) ? '' : value;
+        }
+        else if (field === 'CODPRODUTO' || field === 'PRODUTO' || field === 'VARIACAO'){
+          const s = document.getElementById('search');
+          s.value = (s.value === value) ? '' : value;
+          SEARCH = norm(s.value);
+        }
+
+        currentPage = 1;
+        renderGeneral();
+      };
+    }
+
+    // ===============================
+    // SCROLL HELPERS
+    // ===============================
+    function syncTopScrollbar(topId, wrapId, innerId){
+      const wrap = document.getElementById(wrapId);
+      const inner = document.getElementById(innerId);
+      inner.style.width = wrap.scrollWidth + 'px';
+    }
+
+    function bindTwinScroll(topId, wrapId){
+      const top = document.getElementById(topId);
+      const wrap = document.getElementById(wrapId);
+      let lock = false;
+
+      top.addEventListener('scroll', ()=>{
+        if (lock) return;
+        lock = true;
+        wrap.scrollLeft = top.scrollLeft;
+        lock = false;
+      });
+      wrap.addEventListener('scroll', ()=>{
+        if (lock) return;
+        lock = true;
+        top.scrollLeft = wrap.scrollLeft;
+        lock = false;
+      });
+    }
+
+    function renderPager(pagerId, totalPages, current, onSet){
+      const pager = document.getElementById(pagerId);
+      if (totalPages <= 1){ pager.innerHTML=''; return; }
+
+      let html = '';
+      html += `<button type="button" data-page="prev"${current===1?' disabled':''}>Anterior</button>`;
+
+      const maxButtons = 7;
+      let start = 1, end = totalPages;
+
+      if (totalPages > maxButtons){
+        const half = Math.floor(maxButtons/2);
+        start = Math.max(1, current - half);
+        end = start + maxButtons - 1;
+        if (end > totalPages){ end = totalPages; start = totalPages - maxButtons + 1; }
+      }
+
+      for (let p = start; p <= end; p++){
+        const active = p === current ? ' class="active"' : '';
+        html += `<button type="button" data-page="${p}"${active}>${p}</button>`;
+      }
+
+      html += `<button type="button" data-page="next"${current===totalPages?' disabled':''}>Próxima</button>`;
+      pager.innerHTML = html;
+
+      pager.onclick = (e)=>{
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const val = btn.dataset.page;
+        if (!val) return;
+
+        let next = current;
+        if (val === 'prev'){ if (next > 1) next--; }
+        else if (val === 'next'){ if (next < totalPages) next++; }
+        else {
+          const p = parseInt(val,10);
+          if (!isNaN(p)) next = p;
+        }
+        onSet(next);
+      };
+    }
+
+    // ===============================
+    // EXPORT (principal)
+    // ===============================
+    function csvSafe(v, sep){
+      const t = (v==null?'':v).toString().replace(/"/g,'""');
+      const rx = new RegExp(`["\\n\\r${sep}]`);
+      return rx.test(t) ? `"${t}"` : t;
+    }
+    function downloadText(text, filename, mime){
+      const blob = new Blob([text], {type: mime || 'text/plain'});
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    }
+
+    function exportCSV(){
+      const rows = sortGeneralRows(filterRowsByUI());
+      const SEP = ';';
+
+      const header = [
+        'ENTIDADE','ORIGEM','CONTRATO','POSIÇÃO','VIGÊNCIA',
+        'COD','PRODUTO','VARIAÇÃO',
+        'CUSTO MÉDIO','ESTOQUE','EST.MIN','PTO.REP','EST.MAX','ATA DISP.','PREV Q1','CONS 2026','CONS 2025','COB (MESES)','NEC Q1'
+      ].join(SEP);
+
+      const body = rows.map(d=>{
+        const estoque = Number(d.QTDEDISP||0);
+        const cons26  = Number(d.CONS_2026_QTD||0);
+        const cons25  = Number(d.CONS_2025_QTD||0);
+        const prevQ1  = Number(d.PREV_Q1||0);
+        const cob = calcCobHistMeses(estoque, cons25);
+        const nec = calcNecQ1(estoque, prevQ1);
+
+        const arr = [
+          d.ENTIDADE, d.ORIGEM, d.CONTRATO, d.POSICAO, formatISOToBR(d.DATAFIM_ISO),
+          d.CODPRODUTO, d.PRODUTO, d.VARIACAO,
+          BRLX(d.CUSTO_MEDIO||0),
+          QTYX(d.QTDEDISP||0),
+          QTYX(d.EST_MIN||0),
+          QTYX(d.PTO_REP||0),
+          QTYX(d.EST_MAX||0),
+          QTYX(d.QTDEDISPONIVEL||0),
+          QTYX(d.PREV_Q1||0),
+          QTYX(d.CONS_2026_QTD||0),
+          QTYX(d.CONS_2025_QTD||0),
+          (cob==null ? '' : (Math.round(cob*10)/10).toString().replace('.',',')),
+          QTYX(nec)
+        ];
+        return arr.map(v => csvSafe(v, SEP)).join(SEP);
+      }).join('\n');
+
+      downloadText(header + '\n' + body, `dash_visao_geral_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv;charset=utf-8;');
+    }
+
+    // ===============================
+    // CROSS FILTERS (Resumo de risco)
+    // ===============================
+    function bindRiskClicks(){
+      document.querySelectorAll('.risk-item').forEach(el=>{
+        el.addEventListener('click', ()=>{
+          const k = el.dataset.risk || '';
+          MAIN_XF.risk = (MAIN_XF.risk === k) ? '' : k;
+          currentPage = 1;
+          renderGeneral();
+        });
+      });
+    }
+
+    // ==========================================================
+    // CONTROLE DE ESTOQUE
+    // ==========================================================
+
+    // filtro regional — Set vazio = todas; Set com valores = interseção
+    function estPassRegional(r){
+      if (EST_FILT.regioesNenhuma) return false;
+      if (EST_FILT.regioes.size === 0) return true;
+
+      const regioes = r.REGIOES || [];
+      if (!regioes.length){
+        return EST_FILT.regioes.has('(Sem regional)');
+      }
+
+      for (const reg of regioes){
+        if (EST_FILT.regioes.has(reg)) return true;
+      }
+      return false;
+    }
+
+    function estRowPassFilters(r){
+      if (EST_FILT.filial && r.FILIAL !== EST_FILT.filial) return false;
+      if (EST_FILT.grupo && r.GRUPOCOMPRAS !== EST_FILT.grupo) return false;
+      if (EST_FILT.catalogo && r.CATALOGO !== EST_FILT.catalogo) return false;
+
+      if (EST_FILT.saldo === 'COM' && !(Number(r.SALDOATUAL||0) > 0)) return false;
+      if (EST_FILT.saldo === 'SEM' && !(Number(r.SALDOATUAL||0) === 0)) return false;
+
+      const hasUlt = !!(r.ULTIMA_TRANSFILIAL_ISO || '').trim();
+      if (EST_FILT.ultima === 'COM' && !hasUlt) return false;
+      if (EST_FILT.ultima === 'SEM' && hasUlt) return false;
+
+      if (EST_FILT.catClick && r.CATALOGO !== EST_FILT.catClick) return false;
+
+      if (!estPassRegional(r)) return false;
+
+      if (EST_SEARCH){
+        const q = EST_SEARCH;
+        const prod = norm(r.PRODUTO||'');
+        const varc = norm(r.VARIACAO||'');
+        if (!prod.includes(q) && !varc.includes(q)) return false;
+      }
+
+      return true;
+    }
+
+    function estFiltered(){ return EST_ROWS.filter(estRowPassFilters); }
+
+    // popula checkboxes de regional
+    function buildRegionalCheckboxes(){
+      const wrap = document.getElementById('estRegionalList');
+      if (!TODAS_REGIOES || !TODAS_REGIOES.length){
+        wrap.innerHTML = '<div style="color:#9ca3af;font-size:12px;padding:4px">Coluna REGIAO não encontrada no Consumo 2025/2026.</div>';
+        return;
+      }
+
+      const temSemRegional = EST_ROWS.some(r => !(r.REGIOES && r.REGIOES.length));
+      const regioes = [...TODAS_REGIOES];
+      if (temSemRegional) regioes.push('(Sem regional)');
+
+      let html = '';
+      regioes.forEach(reg=>{
+        const id = `regCheck_${reg.replace(/\s+/g,'_')}`;
+        html += `<label for="${escAttr(id)}">
+          <input type="checkbox" id="${escAttr(id)}" value="${escAttr(reg)}" checked>
+          ${esc(reg)}
+        </label>`;
+      });
+
+      wrap.innerHTML = html;
+      updateRegionalCount();
+
+      wrap.querySelectorAll('input[type="checkbox"]').forEach(cb=>{
+        cb.addEventListener('change', ()=>{
+          syncRegionalSet();
+          estPage = 1;
+          renderEstAll();
+        });
+      });
+    }
+
+    // sincroniza EST_FILT.regioes com os checkboxes
+    function syncRegionalSet(){
+      const all = document.querySelectorAll('#estRegionalList input[type="checkbox"]');
+      const checked = [...all].filter(cb=>cb.checked).map(cb=>cb.value);
+      const total   = all.length;
+
+      EST_FILT.regioesNenhuma = (total > 0 && checked.length === 0);
+
+      if (checked.length === total){
+        EST_FILT.regioes = new Set();
+      } else {
+        EST_FILT.regioes = new Set(checked);
+      }
+
+      updateRegionalCount();
+    }
+
+    function updateRegionalCount(){
+      const all = document.querySelectorAll('#estRegionalList input[type="checkbox"]');
+      const checked = [...all].filter(cb=>cb.checked).length;
+      const total = all.length;
+      const el = document.getElementById('estRegionalCount');
+      if (el){
+        if (total === 0){
+          el.textContent = `Todas as regionais (${total})`;
+        } else if (checked === 0){
+          el.textContent = `Nenhuma regional selecionada`;
+        } else if (checked === total){
+          el.textContent = `Todas as regionais (${total})`;
+        } else {
+          el.textContent = `${checked} de ${total} regionais selecionadas`;
+        }
+      }
+    }
+
+    // botões "Todas" / "Nenhuma"
+    function bindRegionalHeaderLinks(){
+      document.getElementById('estRegionalAll').addEventListener('click', ()=>{
+        document.querySelectorAll('#estRegionalList input[type="checkbox"]').forEach(cb=>{ cb.checked=true; });
+        EST_FILT.regioes = new Set();
+        EST_FILT.regioesNenhuma = false;
+        updateRegionalCount();
+        estPage = 1;
+        renderEstAll();
+      });
+      document.getElementById('estRegionalNone').addEventListener('click', ()=>{
+        document.querySelectorAll('#estRegionalList input[type="checkbox"]').forEach(cb=>{ cb.checked=false; });
+        EST_FILT.regioes = new Set();
+        EST_FILT.regioesNenhuma = true;
+        updateRegionalCount();
+        estPage = 1;
+        renderEstAll();
+      });
+    }
+
+    function drawEstChart(){
+      const rows = estFiltered();
+
+      const map = new Map();
+      rows.forEach(r=>{
+        const cat = (r.CATALOGO || 'SEM CATÁLOGO').toString().trim();
+        const v = Number(r.VALOR_ESTOQUE||0);
+        map.set(cat, (map.get(cat)||0) + v);
+      });
+
+      const arr = [...map.entries()]
+        .map(([cat, val])=>({ cat, val }))
+        .sort((a,b)=> b.val - a.val);
+
+      const dt = new google.visualization.DataTable();
+      dt.addColumn('string','Catálogo');
+      dt.addColumn('number','Valor estoque');
+      dt.addColumn({type:'string', role:'tooltip'});
+
+      arr.forEach(x=>{
+        dt.addRow([
+          breakLabelTwoLines(x.cat),
+          Number(x.val||0),
+          `${x.cat}\n${BRL_VIEW(x.val||0)}`
+        ]);
+      });
+
+      const chart = new google.visualization.ColumnChart(document.getElementById('chartEstCatalogo'));
+      chart.draw(dt, {
+        title: 'Valor de estoque por catálogo (TODOS)',
+        height: 340,
+        legend: { position:'none' },
+        tooltip: { isHtml:false },
+        hAxis: { slantedText:true, slantedTextAngle:45, textStyle:{fontSize:10} },
+        vAxis: { format: 'short' }
+      });
+
+      google.visualization.events.removeAllListeners(chart);
+      google.visualization.events.addListener(chart, 'select', ()=>{
+        const sel = chart.getSelection();
+        if (!sel || !sel.length) return;
+        const row = sel[0].row;
+        if (row == null) return;
+
+        const raw = arr[row] ? arr[row].cat : '';
+        if (!raw) return;
+
+        EST_FILT.catClick = (EST_FILT.catClick === raw) ? '' : raw;
+        document.getElementById('estCatalogo').value = EST_FILT.catClick || '';
+
+        estPage = 1;
+        renderEstAll();
+      });
+    }
+
+    function breakLabelTwoLines(s){
+      const t = String(s||'');
+      if (t.length <= 18) return t;
+      const parts = t.split(' ');
+      if (parts.length < 2) return t;
+      let a = '', b = '';
+      for (let i=0;i<parts.length;i++){
+        if ((a + (a? ' ':'') + parts[i]).length <= 18) a = a ? (a+' '+parts[i]) : parts[i];
+        else { b = parts.slice(i).join(' '); break; }
+      }
+      return b ? (a + '\n' + b) : t;
+    }
+
+    function sortEstRows(rows){
+      const r = rows.slice();
+      r.sort((a,b)=>{
+        const af = String(a.FILIAL||'').localeCompare(String(b.FILIAL||''),'pt-BR',{sensitivity:'base'});
+        if (af !== 0) return af;
+        const ag = String(a.GRUPOCOMPRAS||'').localeCompare(String(b.GRUPOCOMPRAS||''),'pt-BR',{sensitivity:'base'});
+        if (ag !== 0) return ag;
+        const ac = String(a.CATALOGO||'').localeCompare(String(b.CATALOGO||''),'pt-BR',{sensitivity:'base'});
+        if (ac !== 0) return ac;
+        return String(a.PRODUTO||'').localeCompare(String(b.PRODUTO||''),'pt-BR',{sensitivity:'base'});
+      });
+      return r;
+    }
+
+    function drawEstTable(){
+      const all = sortEstRows(estFiltered());
+      const total = all.length;
+
+      const tbl = document.getElementById('estTbl');
+      const info = document.getElementById('estInfo');
+
+      const headHtml = `<thead><tr>
+        <th>FILIAL</th><th>GRUPOCOMPRAS</th><th>CATÁLOGO</th><th>PRODUTO</th><th>VARIAÇÃO</th>
+        <th>MOVIMENTAÇÃO</th><th>TIPO MOV.</th><th>ÚLTIMA TRANSFILIAL</th><th>TIPO MOV. TRANSFILIAL</th>
+        <th>SALDO ATUAL</th><th>VALOR UNIT.</th><th>VALOR ESTOQUE</th>
+        <th>ESTOQUE MÍNIMO</th><th>ESTOQUE MÁXIMO</th><th>PONTO REPOSIÇÃO</th>
+        <th>PREV Q1</th><th>CONS 2026</th><th>CONS 2025</th><th>COB (MESES)</th><th>NEC Q1</th>
+        <th>MESES S/ MOV</th><th>VARATIVA</th><th>DATA INCLUSÃO VAR</th>
+      </tr></thead>`;
+
+      if (total === 0){
+        tbl.innerHTML = headHtml + `<tbody><tr><td colspan="23" style="text-align:center;color:#9ca3af;">Nenhum registro encontrado.</td></tr></tbody>`;
+        info.textContent = 'Mostrando 0 de 0 itens.';
+        document.getElementById('estPager').innerHTML = '';
+        setTimeout(()=>syncEstTop(),0);
+        return;
+      }
+
+      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      if (estPage > totalPages) estPage = totalPages;
+      const startIndex = (estPage - 1) * PAGE_SIZE;
+      const endIndex = Math.min(startIndex + PAGE_SIZE, total);
+      const pageRows = all.slice(startIndex, endIndex);
+
+      info.textContent = `Mostrando ${(startIndex+1).toLocaleString('pt-BR')}–${endIndex.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')} itens`;
+
+      let body = '<tbody>';
+      pageRows.forEach(d=>{
+        const valorEstoque = Number(d.VALOR_ESTOQUE || 0) || (Number(d.SALDOATUAL||0) * Number(d.VALORUNITARIO||0));
+
+        const saldo   = Number(d.SALDOATUAL||0);
+        const cons25  = Number(d.CONS_2025_QTD||0);
+        const cons26  = Number(d.CONS_2026_QTD||0);
+        const prevQ1  = Number(d.PREV_Q1||0);
+        const cob     = calcCobHistMeses(saldo, cons25);
+        const nec     = calcNecQ1(saldo, prevQ1);
+
+        body += `<tr>
+          <td data-field="FILIAL" data-value="${escAttr(d.FILIAL||'')}">${esc(d.FILIAL||'')}</td>
+          <td data-field="GRUPOCOMPRAS" data-value="${escAttr(d.GRUPOCOMPRAS||'')}">${esc(d.GRUPOCOMPRAS||'')}</td>
+          <td data-field="CATALOGO" data-value="${escAttr(d.CATALOGO||'')}">${esc(d.CATALOGO||'')}</td>
+          <td data-field="PRODUTO" data-value="${escAttr(d.PRODUTO||'')}">${esc(d.PRODUTO||'')}</td>
+          <td data-field="VARIACAO" data-value="${escAttr(d.VARIACAO||'')}">${esc(d.VARIACAO||'')}</td>
+          <td>${esc(formatAnyDateToBR(d.MOVIMENTACAO||''))}</td>
+          <td>${esc(d.TIPOMOVIMENTACAO||'')}</td>
+          <td>${esc(formatISOToBR(d.ULTIMA_TRANSFILIAL_ISO||''))}</td>
+          <td>${esc(d.TIPOMOVIMENTACAO_TRANSFILIAL||'')}</td>
+          <td>${QTY(d.SALDOATUAL||0)}</td>
+          <td>${BRL_VIEW(d.VALORUNITARIO||0)}</td>
+          <td>${BRL_VIEW(valorEstoque)}</td>
+          <td>${QTY(d.ESTOQUEMINIMO||0)}</td>
+          <td>${QTY(d.ESTOQUEMAXIMO||0)}</td>
+          <td>${QTY(d.PONTOREPOSICAO||0)}</td>
+          <td>${QTY(prevQ1)}</td>
+          <td>${QTY(cons26)}</td>
+          <td>${QTY(cons25)}</td>
+          <td>${cob==null ? '—' : (Math.round(cob*10)/10).toLocaleString('pt-BR',{maximumFractionDigits:1})}</td>
+          <td>${QTY(nec)}</td>
+          <td>${d.MESES_SEM_MOV27!=null ? Number(d.MESES_SEM_MOV27).toLocaleString('pt-BR',{maximumFractionDigits:2}) : ''}</td>
+          <td>${esc(d.VARATIVA||'')}</td>
+          <td>${esc(formatISOToBR(d.DATAINCLUSAO_VAR_ISO||''))}</td>
+        </tr>`;
+      });
+      body += '</tbody>';
+
+      tbl.innerHTML = headHtml + body;
+      renderEstPager(totalPages);
+      setTimeout(()=>syncEstTop(),0);
+    }
+
+    function renderEstPager(totalPages){
+      const pager = document.getElementById('estPager');
+      if (totalPages <= 1){ pager.innerHTML=''; return; }
+
+      const current = estPage;
+
+      let html = '';
+      html += `<button type="button" data-page="prev"${current===1?' disabled':''}>Anterior</button>`;
+
+      const maxButtons = 7;
+      let start = 1, end = totalPages;
+
+      if (totalPages > maxButtons){
+        const half = Math.floor(maxButtons/2);
+        start = Math.max(1, current - half);
+        end = start + maxButtons - 1;
+        if (end > totalPages){ end = totalPages; start = totalPages - maxButtons + 1; }
+      }
+
+      for (let p = start; p <= end; p++){
+        const active = p === current ? ' class="active"' : '';
+        html += `<button type="button" data-page="${p}"${active}>${p}</button>`;
+      }
+
+      html += `<button type="button" data-page="next"${current===totalPages?' disabled':''}>Próxima</button>`;
+      pager.innerHTML = html;
+
+      pager.onclick = (e)=>{
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const val = btn.dataset.page;
+        if (!val) return;
+
+        let next = current;
+        if (val === 'prev'){ if (next > 1) next--; }
+        else if (val === 'next'){ if (next < totalPages) next++; }
+        else {
+          const p = parseInt(val,10);
+          if (!isNaN(p)) next = p;
+        }
+        estPage = next;
+        drawEstTable();
+      };
+    }
+
+    function syncEstTop(){
+      const wrap = document.querySelector('.est-table-wrap');
+      const top = document.getElementById('estTopScroll');
+      const inner = document.getElementById('estTopScrollInner');
+      if (!wrap || !top || !inner) return;
+      inner.style.width = wrap.scrollWidth + 'px';
+    }
+
+    function bindEstTwinScroll(){
+      const top = document.getElementById('estTopScroll');
+      const wrap = document.querySelector('.est-table-wrap');
+      let lock = false;
+
+      top.addEventListener('scroll', ()=>{
+        if (lock) return;
+        lock = true;
+        wrap.scrollLeft = top.scrollLeft;
+        lock = false;
+      });
+      wrap.addEventListener('scroll', ()=>{
+        if (lock) return;
+        lock = true;
+        top.scrollLeft = wrap.scrollLeft;
+        lock = false;
+      });
+    }
+
+    function bindEstTableClick(){
+      const tbl = document.getElementById('estTbl');
+
+      tbl.addEventListener('click', (e)=>{
+        const td = e.target.closest('td');
+        if (!td) return;
+
+        const field = td.dataset.field;
+        const value = td.dataset.value || '';
+
+        if (field === 'FILIAL'){
+          EST_FILT.filial = (EST_FILT.filial === value) ? '' : value;
+          document.getElementById('estFilial').value = EST_FILT.filial;
+        }
+        else if (field === 'GRUPOCOMPRAS'){
+          EST_FILT.grupo = (EST_FILT.grupo === value) ? '' : value;
+          document.getElementById('estGrupo').value = EST_FILT.grupo;
+        }
+        else if (field === 'CATALOGO'){
+          EST_FILT.catalogo = (EST_FILT.catalogo === value) ? '' : value;
+          document.getElementById('estCatalogo').value = EST_FILT.catalogo;
+          EST_FILT.catClick = '';
+        }
+        else if (field === 'PRODUTO' || field === 'VARIACAO'){
+          const s = document.getElementById('estSearch');
+          s.value = (s.value === value) ? '' : value;
+          EST_SEARCH = norm(s.value);
+        }
+
+        estPage = 1;
+        renderEstAll();
+      });
+    }
+
+    function prefillEstFilters(){
+      const filiais = new Set();
+      const grupos  = new Set();
+      const cats    = new Set();
+
+      EST_ROWS.forEach(r=>{
+        if (r.FILIAL) filiais.add(r.FILIAL);
+        if (r.GRUPOCOMPRAS) grupos.add(r.GRUPOCOMPRAS);
+        if (r.CATALOGO) cats.add(r.CATALOGO);
+      });
+
+      fillSel('estFilial', filiais);
+      fillSel('estGrupo', grupos);
+      fillSel('estCatalogo', cats);
+
+      buildRegionalCheckboxes();
+    }
+
+    function bindEstUI(){
+      document.getElementById('estFilial').addEventListener('change', (e)=>{
+        EST_FILT.filial = e.target.value || '';
+        estPage = 1;
+        renderEstAll();
+      });
+      document.getElementById('estGrupo').addEventListener('change', (e)=>{
+        EST_FILT.grupo = e.target.value || '';
+        estPage = 1;
+        renderEstAll();
+      });
+      document.getElementById('estCatalogo').addEventListener('change', (e)=>{
+        EST_FILT.catalogo = e.target.value || '';
+        EST_FILT.catClick = '';
+        estPage = 1;
+        renderEstAll();
+      });
+      document.getElementById('estSaldo').addEventListener('change', (e)=>{
+        EST_FILT.saldo = e.target.value || '';
+        estPage = 1;
+        renderEstAll();
+      });
+      document.getElementById('estUlt').addEventListener('change', (e)=>{
+        EST_FILT.ultima = e.target.value || '';
+        estPage = 1;
+        renderEstAll();
+      });
+
+      const s = document.getElementById('estSearch');
+      s.addEventListener('input', ()=>{
+        clearTimeout(estSearchTimeout);
+        estSearchTimeout = setTimeout(()=>{
+          EST_SEARCH = norm(s.value);
+          estPage = 1;
+          renderEstAll();
+        }, 200);
+      });
+
+      document.getElementById('estClear').addEventListener('click', ()=>{
+        EST_FILT = { filial:'', grupo:'', catalogo:'', saldo:'', ultima:'', catClick:'', regioes: new Set(), regioesNenhuma:false };
+        EST_SEARCH = '';
+        document.getElementById('estFilial').value='';
+        document.getElementById('estGrupo').value='';
+        document.getElementById('estCatalogo').value='';
+        document.getElementById('estSaldo').value='';
+        document.getElementById('estUlt').value='';
+        document.getElementById('estSearch').value='';
+        document.querySelectorAll('#estRegionalList input[type="checkbox"]').forEach(cb=>{ cb.checked=true; });
+        updateRegionalCount();
+        estPage = 1;
+        renderEstAll();
+      });
+
+      bindEstTwinScroll();
+      bindEstTableClick();
+      bindRegionalHeaderLinks();
+
+      document.getElementById('btnExportEst').addEventListener('click', exportEstCSV);
+    }
+
+    function exportEstCSV(){
+      const rows = sortEstRows(estFiltered());
+      const SEP = ';';
+
+      // ✅ cabeçalho renomeado para REGIONAIS_CONSUMO
+      const header = [
+        'FILIAL','GRUPOCOMPRAS','CATALOGO','PRODUTO','VARIACAO',
+        'MOVIMENTACAO','TIPOMOVIMENTACAO','ULTIMA_TRANSFILIAL','TIPOMOVIMENTACAO_TRANSFILIAL',
+        'SALDOATUAL','VALORUNITARIO','VALOR_ESTOQUE',
+        'ESTOQUEMINIMO','ESTOQUEMAXIMO','PONTOREPOSICAO',
+        'PREV_Q1','CONS_2026','CONS_2025','COB_MESES','NEC_Q1',
+        'MESES_SEM_MOV','VARATIVA','DATAINCLUSAO_VAR',
+        'REGIONAIS_CONSUMO'
+      ].join(SEP);
+
+      const body = rows.map(r=>{
+        const saldo        = Number(r.SALDOATUAL||0);
+        const valorEstoque = Number(r.VALOR_ESTOQUE || 0) || (saldo * Number(r.VALORUNITARIO||0));
+        const cons25       = Number(r.CONS_2025_QTD||0);
+        const cons26       = Number(r.CONS_2026_QTD||0);
+        const prevQ1       = Number(r.PREV_Q1||0);
+        const cob          = calcCobHistMeses(saldo, cons25);
+        const nec          = calcNecQ1(saldo, prevQ1);
+
+        // ✅ exporta só as regionais selecionadas que o item tem
+        // exceto quando todas estão marcadas — aí exporta todas
+        const todasMarcadas = EST_FILT.regioes.size === 0;
+        const regioes = todasMarcadas
+          ? (r.REGIOES || []).join(', ')
+          : (r.REGIOES || []).filter(reg => EST_FILT.regioes.has(reg)).join(', ');
+
+        const arr = [
+          r.FILIAL,
+          r.GRUPOCOMPRAS,
+          r.CATALOGO,
+          r.PRODUTO,
+          r.VARIACAO,
+          formatAnyDateToBR(r.MOVIMENTACAO||''),
+          r.TIPOMOVIMENTACAO,
+          formatISOToBR(r.ULTIMA_TRANSFILIAL_ISO||''),
+          r.TIPOMOVIMENTACAO_TRANSFILIAL,
+          QTYX(saldo),
+          BRLX(r.VALORUNITARIO||0),
+          BRLX(valorEstoque),
+          QTYX(r.ESTOQUEMINIMO||0),
+          QTYX(r.ESTOQUEMAXIMO||0),
+          QTYX(r.PONTOREPOSICAO||0),
+          QTYX(prevQ1),
+          QTYX(cons26),
+          QTYX(cons25),
+          (cob==null ? '' : (Math.round(cob*10)/10).toString().replace('.',',')),
+          QTYX(nec),
+          (r.MESES_SEM_MOV27==null ? '' : String(Number(r.MESES_SEM_MOV27)).replace('.',',')),
+          r.VARATIVA,
+          formatISOToBR(r.DATAINCLUSAO_VAR_ISO||''),
+          regioes
+        ];
+        return arr.map(v => csvSafe(v, SEP)).join(SEP);
+      }).join('\n');
+
+      downloadText('\ufeff' + header + '\n' + body, `controle_estoque_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv;charset=utf-8;');
+    }
+
+    function renderEstAll(){
+      drawEstChart();
+      drawEstTable();
+      setTimeout(()=>syncEstTop(),0);
+    }
+
+    // ===============================
+    // RENDER (principal)
+    // ===============================
+    function renderGeneral(){
+      const rows = filterRowsByUI();
+      const items = filterItemsByUI();
+
+      renderKpisGeneral(rows, items);
+      drawChartGeneral(items);
+      drawTableGeneral(rows);
+
+      setTimeout(()=>syncTopScrollbar('topScroll','tableWrap','topScrollInner'),0);
+    }
+
+    function prefillFilters(){
+      const ents = new Set(), contratos = new Set(), posicoes = new Set();
+      RAW_ROWS.forEach(d=>{
+        if (d.ENTIDADE) ents.add(d.ENTIDADE);
+        if (d.CONTRATO) contratos.add(d.CONTRATO);
+        if (d.POSICAO) posicoes.add(d.POSICAO);
+      });
+
+      fillSel('selEnt', ents);
+      fillSel('selContrato', contratos);
+      fillSel('selPosicao', posicoes);
+    }
+
+    function fillSel(id, set){
+      const el=document.getElementById(id);
+      [...set].sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{sensitivity:'base'}))
+        .forEach(v=> el.insertAdjacentHTML('beforeend', `<option value="${escAttr(v)}">${esc(v)}</option>`));
+    }
+
+    // ===============================
+    // BIND UI (principal)
+    // ===============================
+    function bindUI(){
+      ['selEnt','selOrigem','selContrato','selPosicao','selStock','selVig'].forEach(id=>{
+        document.getElementById(id).addEventListener('change', ()=>{
+          currentPage = 1;
+          renderGeneral();
+        });
+      });
+
+      document.getElementById('btnClear').addEventListener('click', ()=>{
+        document.getElementById('selEnt').value='';
+        document.getElementById('selOrigem').value='';
+        document.getElementById('selContrato').value='';
+        document.getElementById('selPosicao').value='';
+        document.getElementById('selStock').value='';
+        document.getElementById('selVig').value='';
+        document.getElementById('search').value='';
+        SEARCH='';
+        currentPage=1;
+
+        MAIN_XF.kpi = '';
+        MAIN_XF.risk = '';
+        MAIN_XF.variacao = '';
+
+        renderGeneral();
+      });
+
+      document.getElementById('btnExport').addEventListener('click', exportCSV);
+
+      const s = document.getElementById('search');
+      s.addEventListener('input', ()=>{
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(()=>{
+          SEARCH = norm(s.value);
+          currentPage = 1;
+          renderGeneral();
+        }, 200);
+      });
+
+      bindTwinScroll('topScroll','tableWrap');
+      bindRiskClicks();
+    }
+
+    // ===============================
+    // LOAD — versão estática (fetch em vez de google.script.run)
+    // ===============================
+    google.charts.setOnLoadCallback(() => {
+      toggleLoader(true);
+
+      fetch('data/dashboard-cd.json')
+        .then(res => {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then((res)=>{
+          try{
+            document.getElementById('updated').textContent = 'Atualizado em ' + (res.updatedAt || '—');
+
+            RAW_ROWS = (res.rows || []).map(r => ({
+              ...r,
+              PRODUTO_N: norm(r.PRODUTO),
+              VARIACAO_N: norm(r.VARIACAO),
+              COD_N: norm(r.CODPRODUTO)
+            }));
+
+            ITEMS = (res.items || []).map(it => ({...it}));
+
+            // dados regionais vindos do JSON (combinado 2025+2026)
+            VARIACAO_REGIOES = res.variacaoRegioes || {};
+            TODAS_REGIOES    = res.todasRegioes || [];
+
+            EST_ROWS = (res.estoqueRows || []).map(r => ({
+              ...r,
+              REGIOES: Array.isArray(r.REGIOES)
+                ? r.REGIOES
+                : (VARIACAO_REGIOES[String(r.VARIACAO || '').trim()] || [])
+            }));
+
+            prefillFilters();
+            bindUI();
+
+            prefillEstFilters();
+            bindEstUI();
+
+            renderGeneral();
+            renderEstAll();
+
+            toggleLoader(false);
+
+            setTimeout(()=>syncTopScrollbar('topScroll','tableWrap','topScrollInner'),0);
+            setTimeout(()=>syncEstTop(),0);
+
+          } catch(err){ showError(err); }
+        })
+        .catch(showError);
+    });
+  </script>
+</body>
+</html>
