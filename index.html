@@ -4,7 +4,6 @@
 <head>
   <meta charset="UTF-8"/>
   <title>Controle de Saldo do Centro de Distribuição - Ata x Estoque</title>
-  <script src="https://www.gstatic.com/charts/loader.js"></script>
   <style>
     :root{
       --ink:#0f172a; --muted:#64748b; --bg:#f3f6fb; --card:#fff;
@@ -415,8 +414,6 @@
   </div>
 
   <script>
-    google.charts.load('current', {'packages':['corechart']});
-
     // ===============================
     // STATE (principal)
     // ===============================
@@ -473,6 +470,110 @@
     function toggleLoader(on){ document.getElementById('loader').style.display = on ? 'flex' : 'none'; }
     function esc(s){ return (s||'').toString().replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
     function escAttr(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    // ===============================
+    // GRÁFICOS — SVG puro (sem CDN externo)
+    // ===============================
+    function formatCompact(v){
+      const n = Number(v)||0;
+      const abs = Math.abs(n);
+      if (abs >= 1e6) return (n/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+'M';
+      if (abs >= 1e3) return (n/1e3).toLocaleString('pt-BR',{maximumFractionDigits:1})+'k';
+      return n.toLocaleString('pt-BR',{maximumFractionDigits:0});
+    }
+
+    function truncateLabel(s, max){
+      const t = String(s||'');
+      return t.length > max ? t.slice(0, max-1) + '…' : t;
+    }
+
+    // categories: string[]; series: [{name, color, values:number[]}]
+    function renderGroupedBarChart(containerEl, categories, series, opts){
+      opts = opts || {};
+      const tooltipFormat = opts.tooltipFormat || (v => formatCompact(v));
+      const showLegend = opts.showLegend !== false;
+
+      const width  = containerEl.clientWidth  || 800;
+      const height = containerEl.clientHeight || 340;
+
+      if (!categories.length){
+        containerEl.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px;">Sem dados para exibir.</div>`;
+        return;
+      }
+
+      const margin = { top: showLegend ? 40 : 24, right: 12, bottom: 78, left: 46 };
+      const innerW = Math.max(10, width - margin.left - margin.right);
+      const innerH = Math.max(10, height - margin.top - margin.bottom);
+
+      const n = categories.length;
+      const groupWidth = innerW / n;
+      const barGap = 3;
+      const groupPad = 6;
+      const barWidth = Math.max(2, (groupWidth - groupPad*2 - barGap*(series.length-1)) / series.length);
+
+      let maxVal = 0;
+      series.forEach(s => s.values.forEach(v => { if (v > maxVal) maxVal = v; }));
+      if (maxVal <= 0) maxVal = 1;
+
+      const yTicks = 4;
+      const yScale = v => (v/maxVal) * innerH;
+
+      let svg = `<svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">`;
+
+      if (opts.title){
+        svg += `<text x="${margin.left}" y="16" font-size="12" font-weight="700" fill="#0f172a">${escapeXml(opts.title)}</text>`;
+      }
+
+      // gridlines + y labels
+      for (let i=0;i<=yTicks;i++){
+        const v = maxVal * i/yTicks;
+        const y = margin.top + innerH - yScale(v);
+        svg += `<line x1="${margin.left}" y1="${y}" x2="${margin.left+innerW}" y2="${y}" stroke="#e5e7eb" stroke-width="1"/>`;
+        svg += `<text x="${margin.left-6}" y="${y+3}" font-size="9" fill="#64748b" text-anchor="end">${formatCompact(v)}</text>`;
+      }
+
+      // bars + category labels
+      categories.forEach((cat, ci) => {
+        const gx = margin.left + ci*groupWidth + groupPad;
+
+        series.forEach((s, si) => {
+          const val = s.values[ci] || 0;
+          const bx = gx + si*(barWidth + barGap);
+          const bh = yScale(val);
+          const by = margin.top + innerH - bh;
+          svg += `<rect class="bar-clickable" data-cat="${ci}" x="${bx.toFixed(2)}" y="${by.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${bh.toFixed(2)}" fill="${s.color}" rx="2"><title>${escapeXml(cat)} — ${escapeXml(s.name)}: ${escapeXml(tooltipFormat(val))}</title></rect>`;
+        });
+
+        const labelX = margin.left + ci*groupWidth + groupWidth/2;
+        const labelY = margin.top + innerH + 14;
+        svg += `<text x="${labelX.toFixed(2)}" y="${labelY}" font-size="9" fill="#64748b" text-anchor="end" transform="rotate(-40 ${labelX.toFixed(2)} ${labelY})">${escapeXml(truncateLabel(cat, 26))}</text>`;
+      });
+
+      // legend
+      if (showLegend && series.length > 1){
+        let lx = margin.left;
+        const ly = 30;
+        series.forEach(s=>{
+          svg += `<rect x="${lx}" y="${ly-9}" width="9" height="9" fill="${s.color}" rx="2"/>`;
+          svg += `<text x="${lx+13}" y="${ly}" font-size="9.5" fill="#334155">${escapeXml(s.name)}</text>`;
+          lx += 13 + s.name.length*5.5 + 14;
+        });
+      }
+
+      svg += `</svg>`;
+      containerEl.innerHTML = svg;
+
+      if (opts.onBarClick){
+        containerEl.querySelectorAll('.bar-clickable').forEach(el=>{
+          el.style.cursor = 'pointer';
+          el.addEventListener('click', ()=> opts.onBarClick(parseInt(el.dataset.cat, 10)));
+        });
+      }
+    }
+
+    function escapeXml(s){
+      return (s==null ? '' : String(s)).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;' }[m]));
+    }
     function showError(err){
       const box = document.getElementById('errorBox');
       if (box){
@@ -739,41 +840,30 @@
           const prevQ1  = Number(it.PREV_Q1||0);
           const cons25  = Number(it.CONS_2025_QTD||0);
           const nec = calcNecQ1(estoque, prevQ1);
-          return [it.VARIACAO || '(Sem variação)', estoque, ataDisp, prevQ1, cons25, nec];
+          return { variacao: it.VARIACAO || '(Sem variação)', estoque, ataDisp, prevQ1, cons25, nec };
         })
-        .sort((a,b)=> b[5]-a[5])
+        .sort((a,b)=> b.nec-a.nec)
         .slice(0,10);
 
-      const dt = new google.visualization.DataTable();
-      dt.addColumn('string','Variação');
-      dt.addColumn('number','Estoque');
-      dt.addColumn('number','Ata disp.');
-      dt.addColumn('number','Previsão Q1');
-      dt.addColumn('number','Consumo 2025');
-      dt.addColumn('number','Necessidade Q1');
-      top.forEach(r=>dt.addRow(r));
+      const categories = top.map(t=>t.variacao);
+      const series = [
+        { name:'Estoque',       color:'#2563eb', values: top.map(t=>t.estoque) },
+        { name:'Ata disp.',     color:'#16a34a', values: top.map(t=>t.ataDisp) },
+        { name:'Previsão Q1',   color:'#f59e0b', values: top.map(t=>t.prevQ1) },
+        { name:'Consumo 2025',  color:'#ef4444', values: top.map(t=>t.cons25) }
+      ];
 
-      const chart = new google.visualization.ColumnChart(document.getElementById('chartGeneral'));
-      chart.draw(dt, {
+      renderGroupedBarChart(document.getElementById('chartGeneral'), categories, series, {
         title: 'Top 10 — Necessidade Q1',
-        height: 340,
-        legend: { position:'top' },
-        hAxis: { slantedText:true, slantedTextAngle:45, textStyle:{fontSize:10} }
-      });
+        tooltipFormat: v => QTY(v),
+        onBarClick: (ci)=>{
+          const variacao = top[ci] ? top[ci].variacao : '';
+          if (!variacao) return;
 
-      google.visualization.events.removeAllListeners(chart);
-      google.visualization.events.addListener(chart, 'select', ()=>{
-        const sel = chart.getSelection();
-        if (!sel || !sel.length) return;
-        const row = sel[0].row;
-        if (row == null) return;
-
-        const variacao = top[row] ? top[row][0] : '';
-        if (!variacao) return;
-
-        MAIN_XF.variacao = (MAIN_XF.variacao === variacao) ? '' : variacao;
-        currentPage = 1;
-        renderGeneral();
+          MAIN_XF.variacao = (MAIN_XF.variacao === variacao) ? '' : variacao;
+          currentPage = 1;
+          renderGeneral();
+        }
       });
     }
 
@@ -1198,58 +1288,24 @@
         .map(([cat, val])=>({ cat, val }))
         .sort((a,b)=> b.val - a.val);
 
-      const dt = new google.visualization.DataTable();
-      dt.addColumn('string','Catálogo');
-      dt.addColumn('number','Valor estoque');
-      dt.addColumn({type:'string', role:'tooltip'});
+      const categories = arr.map(x=>x.cat);
+      const series = [{ name:'Valor estoque', color:'#1E40AF', values: arr.map(x=>x.val) }];
 
-      arr.forEach(x=>{
-        dt.addRow([
-          breakLabelTwoLines(x.cat),
-          Number(x.val||0),
-          `${x.cat}\n${BRL_VIEW(x.val||0)}`
-        ]);
-      });
-
-      const chart = new google.visualization.ColumnChart(document.getElementById('chartEstCatalogo'));
-      chart.draw(dt, {
+      renderGroupedBarChart(document.getElementById('chartEstCatalogo'), categories, series, {
         title: 'Valor de estoque por catálogo (TODOS)',
-        height: 340,
-        legend: { position:'none' },
-        tooltip: { isHtml:false },
-        hAxis: { slantedText:true, slantedTextAngle:45, textStyle:{fontSize:10} },
-        vAxis: { format: 'short' }
+        tooltipFormat: v => BRL_VIEW(v),
+        showLegend: false,
+        onBarClick: (ci)=>{
+          const raw = arr[ci] ? arr[ci].cat : '';
+          if (!raw) return;
+
+          EST_FILT.catClick = (EST_FILT.catClick === raw) ? '' : raw;
+          document.getElementById('estCatalogo').value = EST_FILT.catClick || '';
+
+          estPage = 1;
+          renderEstAll();
+        }
       });
-
-      google.visualization.events.removeAllListeners(chart);
-      google.visualization.events.addListener(chart, 'select', ()=>{
-        const sel = chart.getSelection();
-        if (!sel || !sel.length) return;
-        const row = sel[0].row;
-        if (row == null) return;
-
-        const raw = arr[row] ? arr[row].cat : '';
-        if (!raw) return;
-
-        EST_FILT.catClick = (EST_FILT.catClick === raw) ? '' : raw;
-        document.getElementById('estCatalogo').value = EST_FILT.catClick || '';
-
-        estPage = 1;
-        renderEstAll();
-      });
-    }
-
-    function breakLabelTwoLines(s){
-      const t = String(s||'');
-      if (t.length <= 18) return t;
-      const parts = t.split(' ');
-      if (parts.length < 2) return t;
-      let a = '', b = '';
-      for (let i=0;i<parts.length;i++){
-        if ((a + (a? ' ':'') + parts[i]).length <= 18) a = a ? (a+' '+parts[i]) : parts[i];
-        else { b = parts.slice(i).join(' '); break; }
-      }
-      return b ? (a + '\n' + b) : t;
     }
 
     function sortEstRows(rows){
@@ -1676,7 +1732,7 @@
     // ===============================
     // LOAD — versão estática (fetch em vez de google.script.run)
     // ===============================
-    google.charts.setOnLoadCallback(() => {
+    document.addEventListener('DOMContentLoaded', () => {
       toggleLoader(true);
 
       fetch('data/dashboard-cd.json')
